@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Lista de Frequência - Assinatura Digital</title>
+    <style>
+        :root{--accent:#0b74e6}
+        body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; padding:20px; background:#f5f7fb}
+        .container{max-width:980px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
+        h1{margin:0 0 12px;font-size:20px}
+        .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+        input, button, select{padding:8px 10px;border-radius:8px;border:1px solid #d1d5db}
+        button{background:var(--accent);color:#fff;border:none;cursor:pointer}
+        button.ghost{background:#fff;color:var(--accent);border:1px solid #d1d5db}
+        
+        /* Estilo para o rótulo do input file */
+        .file-upload {position:relative;overflow:hidden;display:inline-block;}
+        .file-upload input[type=file] {position:absolute;left:0;top:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+        .file-upload button {pointer-events:none;display:inline-block;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:var(--accent);cursor:pointer;}
+        
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th, td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left}
+        .small{font-size:13px;color:#6b7280}
+        .signed-thumb{height:42px;border-radius:6px;object-fit:cover;border:1px solid #e5e7eb}
+        .actions{display:flex;gap:6px}
+        
+        /* Estilos de Ações */
+        .removeBtn{background:#ef4444; color:#fff; border:none;}
+        .editBtn{background:#f97316; color:#fff; border:none;}
+
+        /* Modal e Assinatura */
+        .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+        .card{background:#fff;padding:14px;border-radius:10px;max-width:900px;width:100%;box-shadow:0 8px 30px rgba(2,6,23,.2);max-height:90vh;overflow-y:auto;}
+        .flex{display:flex;gap:12px}
+        .col{flex:1}
+        .signature-canvas{border:1px solid #e2e8f0;border-radius:8px;width:100%;height:220px;touch-action:none;} /* touch-action:none é crucial para tablets */
+        .thumbs{display:flex;gap:8px;align-items:center}
+        .info{font-size:12px;color:#374151}
+        footer{margin-top:12px;text-align:right}
+
+        /* Estilo para a câmera */
+        #video {
+            width: 100%;
+            border-radius: 8px;
+            background: #000;
+            height: 180px;
+            object-fit: cover;
+            transform: scaleX(-1); /* Espelha o vídeo para selfie */
+        }
+
+        /* Modal de Edição */
+        #editModal .card {max-width: 400px;}
+        #editModal input {width: 100%; margin-top: 8px;}
+
+        /* Media Query para telas pequenas (tablets na vertical) */
+        @media (max-width:640px){
+            .flex{flex-direction:column}
+            .card{padding:10px; margin: 10px;}
+            .signature-canvas{height:180px;}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lista de Frequência — Assinatura Digital</h1>
+        <div class="small">Adicione participantes manualmente ou importe uma lista. Peça que cada um assine. Ao final, gere um PDF com todos os registros.</div>
+
+        <div class="controls">
+            <input id="nameInput" placeholder="Nome do participante" />
+            <input id="idInput" placeholder="Identificador (opcional)" />
+            <button id="addBtn">Adicionar</button>
+            
+            <div class="file-upload">
+                <button id="importBtn" class="ghost">Importar lista (.txt/.csv)</button>
+                <input type="file" id="importFile" accept=".txt,.csv" />
+            </div>
+            
+            <button id="clearAll" class="ghost">Limpar tudo</button>
+            <button id="generatePdf" style="margin-left:auto">Gerar PDF</button>
+        </div>
+
+        <table id="table">
+            <thead>
+                <tr><th>Nome</th><th>ID</th><th>Assinatura</th><th>Localização</th><th>Hora</th><th>Ações</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <footer class="small">Funciona em navegadores modernos (Chrome/Edge/Firefox). Para salvar assinaturas e selfies usa a câmera do dispositivo e a API de geolocalização.</footer>
+    </div>
+
+    <div id="modal" class="modal" style="display:none">
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <strong id="modalTitle">Assinar —</strong>
+                <div><button id="closeModal" class="ghost">Fechar</button></div>
+            </div>
+
+            <div class="flex">
+                <div class="col">
+                    <div class="small">Desenhe sua assinatura abaixo (mouse ou touch)</div>
+                    <canvas id="sigCanvas" class="signature-canvas"></canvas>
+                    <div style="margin-top:8px;display:flex;gap:8px">
+                        <button id="clearSig" class="ghost">Limpar assinatura</button>
+                        <button id="saveSig">Salvar assinatura</button>
+                    </div>
+                </div>
+
+                <div style="width:280px">
+                    <div class="small">Selfie (opcional)</div>
+                    <video id="video" autoplay playsinline></video>
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                        <button id="startCam">Iniciar câmera</button>
+                        <button id="takePhoto">Tirar foto</button>
+                    </div>
+                    <div style="margin-top:8px">
+                        <img id="photoPreview" class="signed-thumb" src="" alt="preview" style="display:none;" />
+                    </div>
+
+                    <div style="margin-top:12px" class="small info">
+                        <div>Localização: <span id="geoInfo">—</span></div>
+                        <div>Horário: <span id="timeInfo">—</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal" style="display:none">
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <strong>Editar Participante</strong>
+                <div><button id="closeEditModal" class="ghost">Fechar</button></div>
+            </div>
+            <div>
+                <label class="small">Nome:</label>
+                <input id="editNameInput" />
+                <label class="small">Identificador (ID):</label>
+                <input id="editIdInput" />
+                <button id="saveEditBtn" style="width:100%;margin-top:15px">Salvar Edição</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script>
+        // CONFIGURAÇÃO DE SEGURANÇA
+        const ADMIN_PASSWORD = 'admin123'; 
+
+        // Elementos DOM (Não alterados)
+        const tbody = document.querySelector('#table tbody');
+        const addBtn = document.getElementById('addBtn');
+        const nameInput = document.getElementById('nameInput');
+        const idInput = document.getElementById('idInput');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modalTitle');
+        const closeModal = document.getElementById('closeModal');
+        const sigCanvas = document.getElementById('sigCanvas');
+        const clearSig = document.getElementById('clearSig');
+        const saveSig = document.getElementById('saveSig');
+        const startCam = document.getElementById('startCam');
+        const takePhoto = document.getElementById('takePhoto');
+        const video = document.getElementById('video');
+        const photoPreview = document.getElementById('photoPreview');
+        const geoInfo = document.getElementById('geoInfo');
+        const timeInfo = document.getElementById('timeInfo');
+        const generatePdf = document.getElementById('generatePdf');
+        const clearAll = document.getElementById('clearAll');
+        const importFile = document.getElementById('importFile');
+        const editModal = document.getElementById('editModal');
+        const closeEditModal = document.getElementById('closeEditModal');
+        const editNameInput = document.getElementById('editNameInput');
+        const editIdInput = document.getElementById('editIdInput');
+        const saveEditBtn = document.getElementById('saveEditBtn');
+
+
+        let currentRow = null; 
+        let signaturePad;
+        let stream = null;
+
+        // FUNÇÕES GERAIS E UTILS (Inalteradas) --------------------------------------------
+        function resizeCanvasToDisplaySize(canvas) {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext('2d').scale(ratio, ratio);
+        }
+
+        function addRow(data){
+            const tr = document.createElement('tr');
+            tr.dataset.payload = JSON.stringify(data);
+            
+            let sigContent = data.signed ? `<img src="${data.sigData}" class="signed-thumb" />` : '—';
+            if (data.photo) {
+                const photoThumb = `<img src="${data.photo}" class="signed-thumb" style="margin-left: 8px;" />`;
+                sigContent = `<div class="thumbs" style="display:flex; align-items:center;">${data.signed ? `<img src="${data.sigData}" class="signed-thumb" />` : ''}${photoThumb}</div>`;
+            } else if (data.signed) {
+                sigContent = `<img src="${data.sigData}" class="signed-thumb" />`;
+            } else {
+                sigContent = '—';
+            }
+
+
+            tr.innerHTML = `
+                <td class="name">${escapeHtml(data.name)}</td>
+                <td class="ident">${escapeHtml(data.id || '')}</td>
+                <td class="sigCell">${sigContent}</td>
+                <td class="geoCell">${escapeHtml(data.geo)}</td>
+                <td class="timeCell">${escapeHtml(data.time)}</td>
+                <td class="actions"><div class="actions">
+                    <button class="signBtn">Assinar</button>
+                    <button class="editBtn">Editar</button>
+                    <button class="removeBtn">Excluir</button>
+                </div></td>
+            `;
+            tbody.appendChild(tr);
+
+            tr.querySelector('.signBtn').addEventListener('click', ()=>{
+                const currentData = JSON.parse(tr.dataset.payload);
+                openModalForRow(currentData, tr);
+            });
+
+            tr.querySelector('.editBtn').addEventListener('click', ()=>{
+                const currentData = JSON.parse(tr.dataset.payload);
+                openEditModal(currentData, tr);
+            });
+            
+            tr.querySelector('.removeBtn').addEventListener('click', ()=>{ 
+                const password = prompt('Atenção! Digite a senha de administrador para excluir este participante:');
+                if (password === ADMIN_PASSWORD) {
+                    if(confirm('Tem certeza que deseja EXCLUIR o participante ' + data.name + '?')) {
+                        tr.remove(); 
+                    }
+                } else if (password !== null) {
+                    alert('Senha incorreta.');
+                }
+            });
+        }
+        
+        // CÂMERA E GEOLOCALIZAÇÃO
+        function getLocation(){
+            return new Promise((resolve, reject)=>{
+                if(!navigator.geolocation) return reject(new Error('Geolocalização não suportada'));
+                // Aumentei o timeout para dar tempo em conexões móveis
+                navigator.geolocation.getCurrentPosition((pos)=>resolve(pos),(err)=>reject(err),{enableHighAccuracy:true,timeout:10000});
+            });
+        }
+        
+        // *** FUNÇÃO PRINCIPAL DE LOCALIZAÇÃO E ENDEREÇO (MODIFICADA) ***
+        async function getAddressFromCoords(lat, lon) {
+            // Usamos o Nominatim do OpenStreetMap para Geocodificação Reversa
+            // URL com o idioma Português (pt-BR)
+            const reverseGeoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=pt-BR`;
+            
+            try {
+                const response = await fetch(reverseGeoUrl, {headers: {'User-Agent': 'ListaDeFrequencia/1.0'}}); // Header para identificação
+                if (!response.ok) throw new Error('API Geocodificação retornou erro');
+                
+                const data = await response.json();
+                
+                // Prioriza o nome de exibição completo, que geralmente é o mais descritivo
+                if (data.display_name) {
+                    return data.display_name;
+                } 
+                // Se não houver nome de exibição, tenta construir a partir dos componentes
+                else if (data.address) {
+                    const addr = data.address;
+                    // Tenta construir: Rua, Número, Cidade, Estado
+                    const street = addr.road || addr.footway || addr.pedestrian || '';
+                    const house = addr.house_number ? `, ${addr.house_number}` : '';
+                    const city = addr.city || addr.town || addr.village || addr.county || '';
+                    const state = addr.state || '';
+                    
+                    let parts = [street + house, city, state].filter(p => p.trim());
+                    if (parts.length > 0) {
+                        return parts.join(', ');
+                    }
+                }
+
+                return `Coordenadas: ${lat.toFixed(6)}, ${lon.toFixed(6)} (Endereço não formatado)`;
+                
+            } catch (error) {
+                console.error('Erro ao buscar endereço:', error);
+                return `Coordenadas: ${lat.toFixed(6)}, ${lon.toFixed(6)} (Erro ao buscar endereço)`;
+            }
+        }
+
+
+        // *** FUNÇÃO DE ABERTURA DO MODAL (MODIFICADA para chamar a Geocodificação) ***
+        async function openModalForRow(rowData, rowElement){
+            currentRow = rowElement;
+            modalTitle.textContent = `Assinar — ${rowData.name}`;
+            
+            photoPreview.src = rowData.photo || '';
+            photoPreview.style.display = rowData.photo ? 'block' : 'none';
+            geoInfo.textContent = rowData.geo || 'Aguardando...'; 
+            timeInfo.textContent = rowData.time || '—';
+
+            modal.style.display = 'flex';
+            
+            // Inicializa o SignaturePad
+            setTimeout(() => {
+                resizeCanvasToDisplaySize(sigCanvas);
+                signaturePad = new SignaturePad(sigCanvas, {backgroundColor: 'rgba(255,255,255,0)'});
+                if(rowData.sigData) signaturePad.fromDataURL(rowData.sigData);
+            }, 50);
+
+            // Tentar obter localização e horário
+            try {
+                const loc = await getLocation();
+                const lat = loc.coords.latitude;
+                const lon = loc.coords.longitude;
+                
+                // 1. Mostrar status de busca
+                rowData.geo = `Aguardando endereço... (${lat.toFixed(6)}, ${lon.toFixed(6)})`;
+                geoInfo.textContent = rowData.geo;
+
+                // 2. Buscar o endereço formatado
+                const fullAddress = await getAddressFromCoords(lat, lon);
+                
+                // 3. Atualiza os dados da linha com o endereço
+                rowData.geo = fullAddress;
+                rowData.time = new Date().toLocaleString();
+                geoInfo.textContent = fullAddress;
+
+            } catch(e) {
+                console.error('Erro ao obter geolocalização:', e);
+                // Se a geolocalização falhar (permissão negada, etc.)
+                rowData.geo = 'Indisponível (Erro)';
+                rowData.time = new Date().toLocaleString();
+                geoInfo.textContent = rowData.geo;
+            }
+        }
+
+
+        // EVENT LISTENERS (Inalterados) ----------------------------------------------------
+
+        closeModal.addEventListener('click', ()=>{ stopCamera(); signaturePad && signaturePad.clear(); modal.style.display='none'; });
+
+        addBtn.addEventListener('click', ()=>{
+            const name = nameInput.value.trim();
+            if(!name) return alert('Digite o nome do participante.');
+            const id = idInput.value.trim();
+            const rowData = {name, id, signed:false, sigData:null, photo:null, geo:'—', time:'—'};
+            addRow(rowData);
+            nameInput.value=''; idInput.value='';
+        });
+
+        clearAll.addEventListener('click', ()=>{ 
+            const password = prompt('Atenção! Digite a senha de administrador para LIMPAR TODA A LISTA:');
+            if (password === ADMIN_PASSWORD) {
+                if(confirm('Tem certeza que deseja LIMPAR TODA A LISTA?')) tbody.innerHTML=''; 
+            } else if (password !== null) {
+                alert('Senha incorreta.');
+            }
+        });
+
+        clearSig.addEventListener('click', ()=> signaturePad && signaturePad.clear());
+
+        saveSig.addEventListener('click', ()=>{
+            if(!signaturePad) return;
+            if(signaturePad.isEmpty()) return alert('Assinatura vazia. Por favor assine.');
+            
+            const dataUrl = signaturePad.toDataURL('image/png');
+            
+            const rowData = JSON.parse(currentRow.dataset.payload);
+            rowData.signed = true; 
+            rowData.sigData = dataUrl; 
+            rowData.photo = photoPreview.src && photoPreview.style.display !== 'none' ? photoPreview.src : null; 
+            rowData.geo = geoInfo.textContent || rowData.geo; 
+            rowData.time = timeInfo.textContent || rowData.time;
+            
+            const sigContent = rowData.photo ? 
+                `<div class="thumbs" style="display:flex; align-items:center;"><img src="${dataUrl}" class="signed-thumb" /><img src="${rowData.photo}" class="signed-thumb" style="margin-left: 8px;" /></div>` : 
+                `<img src="${dataUrl}" class="signed-thumb" />`;
+
+            currentRow.querySelector('.sigCell').innerHTML = sigContent;
+            currentRow.querySelector('.geoCell').textContent = rowData.geo;
+            currentRow.querySelector('.timeCell').textContent = rowData.time;
+            currentRow.dataset.payload = JSON.stringify(rowData);
+            
+            signaturePad.clear(); 
+            stopCamera(); 
+            modal.style.display='none';
+        });
+
+        startCam.addEventListener('click', async ()=>{
+            if(stream){ stopCamera(); startCam.textContent = 'Iniciar câmera'; return; }
+            try{
+                stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
+                video.srcObject = stream;
+                startCam.textContent = 'Parar câmera';
+            }catch(e){ 
+                alert('Não foi possível acessar a câmera: ' + (e.message||e)); 
+                startCam.textContent = 'Iniciar câmera';
+            }
+        });
+        
+        function stopCamera(){ 
+            if(stream){ 
+                stream.getTracks().forEach(t=>t.stop()); 
+                stream=null; 
+                video.srcObject=null; 
+                startCam.textContent = 'Iniciar câmera'; 
+            } 
+        }
+
+        takePhoto.addEventListener('click', ()=>{
+            if(!video.srcObject) return alert('Inicie a câmera antes de tirar a foto.');
+            
+            const w = video.videoWidth, h = video.videoHeight;
+            const canvas = document.createElement('canvas'); 
+            canvas.width=w; canvas.height=h; 
+            const ctx = canvas.getContext('2d'); 
+            
+            ctx.translate(w, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video,0,0,w,h);
+            
+            const dataUrl = canvas.toDataURL('image/jpeg'); 
+            photoPreview.src = dataUrl;
+            photoPreview.style.display = 'block';
+            stopCamera();
+        });
+
+        // MODAL DE EDIÇÃO (Inalterado)
+        let editingRowData = null; 
+        function openEditModal(rowData, rowElement) {
+            currentRow = rowElement;
+            editingRowData = rowData;
+
+            editNameInput.value = rowData.name;
+            editIdInput.value = rowData.id;
+            editModal.style.display = 'flex';
+        }
+
+        closeEditModal.addEventListener('click', () => {
+            editModal.style.display = 'none';
+        });
+
+        saveEditBtn.addEventListener('click', () => {
+            const newName = editNameInput.value.trim();
+            const newId = editIdInput.value.trim();
+
+            if (!newName) {
+                alert('O nome do participante não pode ser vazio.');
+                return;
+            }
+
+            editingRowData.name = newName;
+            editingRowData.id = newId;
+
+            currentRow.dataset.payload = JSON.stringify(editingRowData);
+            currentRow.querySelector('.name').textContent = escapeHtml(newName);
+            currentRow.querySelector('.ident').textContent = escapeHtml(newId);
+
+            editModal.style.display = 'none';
+            alert('Participante editado com sucesso!');
+        });
+
+        // IMPORTAÇÃO (Inalterado)
+        importFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const content = event.target.result;
+                processImportedList(content);
+                e.target.value = ''; 
+            };
+            reader.onerror = () => {
+                alert('Erro ao ler o arquivo.');
+            };
+            reader.readAsText(file);
+        });
+
+        function processImportedList(content) {
+            const lines = content.split('\n').filter(line => line.trim() !== '');
+            let participantsAdded = 0;
+
+            lines.forEach(line => {
+                const parts = line.split(/, |; |\t| - /).map(p => p.trim());
+                let name = parts[0];
+                let id = parts[1] || '';
+
+                if (name) {
+                    const rowData = {name: name, id: id, signed: false, sigData: null, photo: null, geo: '—', time: '—'};
+                    addRow(rowData);
+                    participantsAdded++;
+                }
+            });
+
+            alert(`${participantsAdded} participantes importados com sucesso.`);
+        }
+
+        // PDF e PERSISTÊNCIA (Inalterados)
+        generatePdf.addEventListener('click', async ()=>{
+            if(!tbody.children.length) return alert('Nenhum participante na lista.');
+            
+            const containerToPrint = document.querySelector('.container').cloneNode(true);
+            containerToPrint.querySelector('.controls').remove();
+            containerToPrint.querySelector('footer').remove();
+            
+            containerToPrint.style.boxShadow = 'none';
+            containerToPrint.style.maxWidth = 'none';
+            containerToPrint.style.padding = '0'; 
+            
+            const exportDiv = document.createElement('div');
+            exportDiv.style.padding='10mm'; 
+            exportDiv.style.fontFamily='Arial, Helvetica, sans-serif';
+            
+            const header = document.createElement('div'); 
+            header.innerHTML = `<h2>Lista de Frequência</h2><div style="font-size:12px;">Gerado em: ${new Date().toLocaleString()}</div><hr style="margin:10px 0;"/>`;
+            exportDiv.appendChild(header);
+
+            const table = document.createElement('table'); 
+            table.style.width='100%'; table.style.borderCollapse='collapse'; table.style.fontSize='12px';
+
+            const thead = document.createElement('thead'); 
+            thead.innerHTML='<tr><th style="border-bottom:1px solid #444;text-align:left;padding:6px">Nome</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px">ID</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px;width:120px;">Assinatura</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px">Localização</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px">Hora</th></tr>';
+            table.appendChild(thead);
+            const tb = document.createElement('tbody');
+
+            Array.from(tbody.children).forEach(tr=>{
+                const rowData = JSON.parse(tr.dataset.payload);
+                const r = document.createElement('tr');
+                
+                let sigContent = rowData.sigData ? 
+                    `<img src="${rowData.sigData}" style="height:50px;width:100px;object-fit:contain;border:1px solid #ccc;display:block;margin-bottom:4px;"/>` : 
+                    '<span style="color:#ff0000">Não assinou</span>';
+                
+                if (rowData.photo) {
+                    sigContent += `<img src="${rowData.photo}" style="height:50px;width:50px;object-fit:cover;border:1px solid #ccc;margin-top:4px;"/>`;
+                }
+
+                r.innerHTML = `
+                    <td style="padding:6px;border-bottom:1px solid #ddd">${escapeHtml(rowData.name)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd">${escapeHtml(rowData.id||'')}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd">${sigContent}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd">${escapeHtml(rowData.geo||'')}</td>
+                    <td style="padding:6px;border-bottom:1px solid #ddd">${escapeHtml(rowData.time||'')}</td>
+                `;
+                tb.appendChild(r);
+            });
+            table.appendChild(tb);
+            exportDiv.appendChild(table);
+
+            const opt = {margin:10,filename:`lista_frequencia_${(new Date()).toISOString().slice(0,10)}.pdf`,image:{type:'jpeg',quality:0.95},html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}};
+            html2pdf().set(opt).from(exportDiv).save();
+        });
+
+        function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        window.addEventListener('resize', ()=>{ 
+            if(modal.style.display === 'flex' && sigCanvas){ 
+                resizeCanvasToDisplaySize(sigCanvas); 
+                if(signaturePad) signaturePad.fromDataURL(signaturePad.toDataURL()); 
+            }
+        });
+
+        function saveToLocal(){
+            const rows = Array.from(tbody.children).map(tr=>JSON.parse(tr.dataset.payload));
+            localStorage.setItem('attendance_list_v1', JSON.stringify(rows));
+        }
+        function loadFromLocal(){
+            const raw = localStorage.getItem('attendance_list_v1'); if(!raw) return;
+            try{ 
+                const arr = JSON.parse(raw); 
+                arr.forEach(addRow); 
+            }catch(e){
+                console.error("Erro ao carregar dados locais:", e);
+            }
+        }
+        const observer = new MutationObserver(()=> saveToLocal());
+        observer.observe(tbody,{childList:true,subtree:true,attributes:true,attributeFilter:['data-payload']});
+
+        loadFromLocal();
+    </script>
+</body>
+</html>
