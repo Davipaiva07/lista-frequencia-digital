@@ -5,55 +5,73 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Lista de Frequência - CRI 2026</title>
     <style>
-        :root{--accent:#0b74e6}
-        body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; padding:20px; background:#f5f7fb}
+        /* VARIÁVEIS DE COR E ESTILO BASE */
+        :root{--accent:#0b74e6; --danger:#ef4444; --warning:#f97316; --bg-light:#f5f7fb;}
+        body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; padding:20px; background:var(--bg-light)}
         .container{max-width:980px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
         h1{margin:0 0 12px;font-size:20px}
-        .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-        input, button, select{padding:8px 10px;border-radius:8px;border:1px solid #d1d5db}
-        button{background:var(--accent);color:#fff;border:none;cursor:pointer}
-        button.ghost{background:#fff;color:var(--accent);border:1px solid #d1d5db}
+        
+        /* CONTROLES E INPUTS */
+        .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap; align-items: stretch;}
+        input, button, select{padding:8px 10px;border-radius:8px;border:1px solid #d1d5db; box-sizing: border-box; transition: background 0.1s;}
+        #nameInput, #idInput {flex-grow: 1; min-width: 120px;}
+        
+        /* ESTILOS DE BOTÃO PADRÃO (AZUL) */
+        button{background:var(--accent);color:#fff;border:none;cursor:pointer; white-space: nowrap;}
+        
+        /* ESTILO GHOST (BRANCO COM BORDA AZUL) - PARA IMPORTAR E LIMPAR E REFAZER*/
+        button.ghost, .file-upload button {
+            background:#fff;
+            color:var(--accent); /* Cor do texto azul */
+            border:1px solid var(--accent); /* Borda azul */
+        }
         
         /* Estilo para o rótulo do input file */
         .file-upload {position:relative;overflow:hidden;display:inline-block;}
         .file-upload input[type=file] {position:absolute;left:0;top:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-        .file-upload button {pointer-events:none;display:inline-block;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:var(--accent);cursor:pointer;}
         
+        /* TABELA E LINHAS */
         table{width:100%;border-collapse:collapse;margin-top:12px}
-        th, td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left}
+        th, td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left; vertical-align: middle;}
         .small{font-size:13px;color:#6b7280}
         .signed-thumb{height:42px;border-radius:6px;object-fit:cover;border:1px solid #e5e7eb}
-        .actions{display:flex;gap:6px}
-        
-        /* Estilos de Ações */
-        .removeBtn{background:#ef4444; color:#fff; border:none;}
-        .editBtn{background:#f97316; color:#fff; border:none;}
+        /* Ajuste de espaçamento para as ações */
+        .actions{display:flex;gap:6px; flex-wrap: nowrap;} 
+        /* Esconder o botão "Assinar" se já estiver assinado, e mostrar "Refazer" */
+        .signed-row .signBtn {display: none;}
+        .signed-row .refazerBtn {display: inline-block;}
+        .unsigned-row .refazerBtn {display: none;}
+
+
+        /* ESTILOS ESPECÍFICOS PARA OS BOTÕES DA TABELA (REFORÇADO) */
+        #table button {
+            padding: 6px 10px;
+            font-size: 13px;
+            border: none;
+            white-space: nowrap;
+        }
+
+        .removeBtn, #table .removeBtn{background:var(--danger); color:#fff;}
+        .editBtn, #table .editBtn{background:var(--warning); color:#fff;}
+        .signBtn, #table .signBtn{background:var(--accent); color:#fff;}
+        /* Novo botão Refazer usando o estilo ghost (azul com fundo branco) */
+        .refazerBtn, #table .refazerBtn{background:#fff; color:var(--accent); border:1px solid var(--accent);}
+
 
         /* Modal e Assinatura */
         .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
         .card{background:#fff;padding:14px;border-radius:10px;max-width:900px;width:100%;box-shadow:0 8px 30px rgba(2,6,23,.2);max-height:90vh;overflow-y:auto;}
         .flex{display:flex;gap:12px}
         .col{flex:1}
-        .signature-canvas{border:1px solid #e2e8f0;border-radius:8px;width:100%;height:220px;touch-action:none;} /* touch-action:none é crucial para tablets */
+        .signature-canvas{border:1px solid #e2e8f0;border-radius:8px;width:100%;height:220px;touch-action:none;}
         .thumbs{display:flex;gap:8px;align-items:center}
         .info{font-size:12px;color:#374151}
         footer{margin-top:12px;text-align:right}
 
-        /* Estilo para a câmera */
-        #video {
-            width: 100%;
-            border-radius: 8px;
-            background: #000;
-            height: 180px;
-            object-fit: cover;
-            transform: scaleX(-1); /* Espelha o vídeo para selfie */
-        }
-
-        /* Modal de Edição */
+        #video {width: 100%;border-radius: 8px;background: #000;height: 180px;object-fit: cover;transform: scaleX(-1);}
         #editModal .card {max-width: 400px;}
         #editModal input {width: 100%; margin-top: 8px;}
 
-        /* Media Query para telas pequenas (tablets na vertical) */
         @media (max-width:640px){
             .flex{flex-direction:column}
             .card{padding:10px; margin: 10px;}
@@ -77,6 +95,7 @@
             </div>
             
             <button id="clearAll" class="ghost">Limpar tudo</button>
+            
             <button id="generatePdf" style="margin-left:auto">Gerar PDF</button>
         </div>
 
@@ -89,7 +108,7 @@
 
         <footer class="small">Desenvolvido por Equipe de TI - Casa De Criança</footer>
     </div>
-
+    
     <div id="modal" class="modal" style="display:none">
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -108,7 +127,7 @@
                 </div>
 
                 <div style="width:280px">
-                    <div class="small">Selfie (opcional)</div>
+                    <div class="small">Selfie (obrigatória)</div>
                     <video id="video" autoplay playsinline></video>
                     <div style="display:flex;gap:8px;margin-top:6px">
                         <button id="startCam">Iniciar câmera</button>
@@ -148,9 +167,9 @@
 
     <script>
         // CONFIGURAÇÃO DE SEGURANÇA
-        const ADMIN_PASSWORD = '1992'; 
+        const ADMIN_PASSWORD = '1992'; 
 
-        // Elementos DOM (Não alterados)
+        // Elementos DOM
         const tbody = document.querySelector('#table tbody');
         const addBtn = document.getElementById('addBtn');
         const nameInput = document.getElementById('nameInput');
@@ -177,16 +196,26 @@
         const saveEditBtn = document.getElementById('saveEditBtn');
 
 
-        let currentRow = null; 
+        let currentRow = null; 
         let signaturePad;
         let stream = null;
 
-        // FUNÇÕES GERAIS E UTILS (Inalteradas) --------------------------------------------
+        // FUNÇÕES GERAIS E UTILS --------------------------------------------
         function resizeCanvasToDisplaySize(canvas) {
             const ratio = Math.max(window.devicePixelRatio || 1, 1);
             canvas.width = canvas.offsetWidth * ratio;
             canvas.height = canvas.offsetHeight * ratio;
             canvas.getContext('2d').scale(ratio, ratio);
+        }
+
+        function updateRowClasses(tr, isSigned) {
+            if (isSigned) {
+                tr.classList.remove('unsigned-row');
+                tr.classList.add('signed-row');
+            } else {
+                tr.classList.remove('signed-row');
+                tr.classList.add('unsigned-row');
+            }
         }
 
         function addRow(data){
@@ -203,6 +232,8 @@
                 sigContent = '—';
             }
 
+            // Define a classe inicial para controle de botões
+            updateRowClasses(tr, data.signed);
 
             tr.innerHTML = `
                 <td class="name">${escapeHtml(data.name)}</td>
@@ -212,27 +243,35 @@
                 <td class="timeCell">${escapeHtml(data.time)}</td>
                 <td class="actions"><div class="actions">
                     <button class="signBtn">Assinar</button>
+                    <button class="refazerBtn ghost">Refazer</button>
                     <button class="editBtn">Editar</button>
                     <button class="removeBtn">Excluir</button>
                 </div></td>
             `;
             tbody.appendChild(tr);
 
-            tr.querySelector('.signBtn').addEventListener('click', ()=>{
+            const signBtn = tr.querySelector('.signBtn');
+            const refazerBtn = tr.querySelector('.refazerBtn');
+
+            const openModalHandler = ()=>{
                 const currentData = JSON.parse(tr.dataset.payload);
                 openModalForRow(currentData, tr);
-            });
+            };
 
+            // Ambos Assinar e Refazer chamam o mesmo modal
+            signBtn.addEventListener('click', openModalHandler);
+            refazerBtn.addEventListener('click', openModalHandler);
+            
             tr.querySelector('.editBtn').addEventListener('click', ()=>{
                 const currentData = JSON.parse(tr.dataset.payload);
                 openEditModal(currentData, tr);
             });
             
-            tr.querySelector('.removeBtn').addEventListener('click', ()=>{ 
+            tr.querySelector('.removeBtn').addEventListener('click', ()=>{ 
                 const password = prompt('Atenção! Digite a senha de administrador para excluir este participante:');
                 if (password === ADMIN_PASSWORD) {
                     if(confirm('Tem certeza que deseja EXCLUIR o participante ' + data.name + '?')) {
-                        tr.remove(); 
+                        tr.remove(); 
                     }
                 } else if (password !== null) {
                     alert('Senha incorreta.');
@@ -249,26 +288,20 @@
             });
         }
         
-        // *** FUNÇÃO PRINCIPAL DE LOCALIZAÇÃO E ENDEREÇO (MODIFICADA) ***
         async function getAddressFromCoords(lat, lon) {
-            // Usamos o Nominatim do OpenStreetMap para Geocodificação Reversa
-            // URL com o idioma Português (pt-BR)
             const reverseGeoUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=pt-BR`;
             
             try {
-                const response = await fetch(reverseGeoUrl, {headers: {'User-Agent': 'ListaDeFrequencia/1.0'}}); // Header para identificação
+                const response = await fetch(reverseGeoUrl, {headers: {'User-Agent': 'ListaDeFrequencia/1.0'}}); 
                 if (!response.ok) throw new Error('API Geocodificação retornou erro');
                 
                 const data = await response.json();
                 
-                // Prioriza o nome de exibição completo, que geralmente é o mais descritivo
                 if (data.display_name) {
                     return data.display_name;
-                } 
-                // Se não houver nome de exibição, tenta construir a partir dos componentes
+                } 
                 else if (data.address) {
                     const addr = data.address;
-                    // Tenta construir: Rua, Número, Cidade, Estado
                     const street = addr.road || addr.footway || addr.pedestrian || '';
                     const house = addr.house_number ? `, ${addr.house_number}` : '';
                     const city = addr.city || addr.town || addr.village || addr.county || '';
@@ -289,14 +322,15 @@
         }
 
 
-        // *** FUNÇÃO DE ABERTURA DO MODAL (MODIFICADA para chamar a Geocodificação) ***
+        // FUNÇÃO DE ABERTURA DO MODAL (Assinar/Refazer)
         async function openModalForRow(rowData, rowElement){
             currentRow = rowElement;
             modalTitle.textContent = `Assinar — ${rowData.name}`;
             
+            // Pré-carrega dados antigos
             photoPreview.src = rowData.photo || '';
             photoPreview.style.display = rowData.photo ? 'block' : 'none';
-            geoInfo.textContent = rowData.geo || 'Aguardando...'; 
+            geoInfo.textContent = rowData.geo || 'Aguardando...'; 
             timeInfo.textContent = rowData.time || '—';
 
             modal.style.display = 'flex';
@@ -314,21 +348,17 @@
                 const lat = loc.coords.latitude;
                 const lon = loc.coords.longitude;
                 
-                // 1. Mostrar status de busca
                 rowData.geo = `Aguardando endereço... (${lat.toFixed(6)}, ${lon.toFixed(6)})`;
                 geoInfo.textContent = rowData.geo;
 
-                // 2. Buscar o endereço formatado
                 const fullAddress = await getAddressFromCoords(lat, lon);
                 
-                // 3. Atualiza os dados da linha com o endereço
                 rowData.geo = fullAddress;
                 rowData.time = new Date().toLocaleString();
                 geoInfo.textContent = fullAddress;
 
             } catch(e) {
                 console.error('Erro ao obter geolocalização:', e);
-                // Se a geolocalização falhar (permissão negada, etc.)
                 rowData.geo = 'Indisponível (Erro)';
                 rowData.time = new Date().toLocaleString();
                 geoInfo.textContent = rowData.geo;
@@ -336,7 +366,7 @@
         }
 
 
-        // EVENT LISTENERS (Inalterados) ----------------------------------------------------
+        // EVENT LISTENERS ----------------------------------------------------
 
         closeModal.addEventListener('click', ()=>{ stopCamera(); signaturePad && signaturePad.clear(); modal.style.display='none'; });
 
@@ -349,10 +379,10 @@
             nameInput.value=''; idInput.value='';
         });
 
-        clearAll.addEventListener('click', ()=>{ 
+        clearAll.addEventListener('click', ()=>{ 
             const password = prompt('Atenção! Digite a senha de administrador para LIMPAR TODA A LISTA:');
             if (password === ADMIN_PASSWORD) {
-                if(confirm('Tem certeza que deseja LIMPAR TODA A LISTA?')) tbody.innerHTML=''; 
+                if(confirm('Tem certeza que deseja LIMPAR TODA A LISTA?')) tbody.innerHTML=''; 
             } else if (password !== null) {
                 alert('Senha incorreta.');
             }
@@ -364,17 +394,22 @@
             if(!signaturePad) return;
             if(signaturePad.isEmpty()) return alert('Assinatura vazia. Por favor assine.');
             
+            // VALIDAÇÃO: Selfie obrigatória
+            if (photoPreview.style.display === 'none' || !photoPreview.src || photoPreview.src.includes('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA=')) {
+                return alert('A selfie é obrigatória para salvar. Por favor, inicie a câmera e tire a foto.');
+            }
+            
             const dataUrl = signaturePad.toDataURL('image/png');
             
             const rowData = JSON.parse(currentRow.dataset.payload);
-            rowData.signed = true; 
-            rowData.sigData = dataUrl; 
-            rowData.photo = photoPreview.src && photoPreview.style.display !== 'none' ? photoPreview.src : null; 
-            rowData.geo = geoInfo.textContent || rowData.geo; 
+            rowData.signed = true; 
+            rowData.sigData = dataUrl; 
+            rowData.photo = photoPreview.src && photoPreview.style.display !== 'none' ? photoPreview.src : null; 
+            rowData.geo = geoInfo.textContent || rowData.geo; 
             rowData.time = timeInfo.textContent || rowData.time;
             
-            const sigContent = rowData.photo ? 
-                `<div class="thumbs" style="display:flex; align-items:center;"><img src="${dataUrl}" class="signed-thumb" /><img src="${rowData.photo}" class="signed-thumb" style="margin-left: 8px;" /></div>` : 
+            const sigContent = rowData.photo ? 
+                `<div class="thumbs" style="display:flex; align-items:center;"><img src="${dataUrl}" class="signed-thumb" /><img src="${rowData.photo}" class="signed-thumb" style="margin-left: 8px;" /></div>` : 
                 `<img src="${dataUrl}" class="signed-thumb" />`;
 
             currentRow.querySelector('.sigCell').innerHTML = sigContent;
@@ -382,8 +417,10 @@
             currentRow.querySelector('.timeCell').textContent = rowData.time;
             currentRow.dataset.payload = JSON.stringify(rowData);
             
-            signaturePad.clear(); 
-            stopCamera(); 
+            updateRowClasses(currentRow, true); // Atualiza as classes da linha
+
+            signaturePad.clear(); 
+            stopCamera(); 
             modal.style.display='none';
         });
 
@@ -393,41 +430,41 @@
                 stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
                 video.srcObject = stream;
                 startCam.textContent = 'Parar câmera';
-            }catch(e){ 
-                alert('Não foi possível acessar a câmera: ' + (e.message||e)); 
+            }catch(e){ 
+                alert('Não foi possível acessar a câmera: ' + (e.message||e)); 
                 startCam.textContent = 'Iniciar câmera';
             }
         });
         
-        function stopCamera(){ 
-            if(stream){ 
-                stream.getTracks().forEach(t=>t.stop()); 
-                stream=null; 
-                video.srcObject=null; 
-                startCam.textContent = 'Iniciar câmera'; 
-            } 
+        function stopCamera(){ 
+            if(stream){ 
+                stream.getTracks().forEach(t=>t.stop()); 
+                stream=null; 
+                video.srcObject=null; 
+                startCam.textContent = 'Iniciar câmera'; 
+            } 
         }
 
         takePhoto.addEventListener('click', ()=>{
             if(!video.srcObject) return alert('Inicie a câmera antes de tirar a foto.');
             
             const w = video.videoWidth, h = video.videoHeight;
-            const canvas = document.createElement('canvas'); 
-            canvas.width=w; canvas.height=h; 
-            const ctx = canvas.getContext('2d'); 
+            const canvas = document.createElement('canvas'); 
+            canvas.width=w; canvas.height=h; 
+            const ctx = canvas.getContext('2d'); 
             
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
             ctx.drawImage(video,0,0,w,h);
             
-            const dataUrl = canvas.toDataURL('image/jpeg'); 
+            const dataUrl = canvas.toDataURL('image/jpeg'); 
             photoPreview.src = dataUrl;
             photoPreview.style.display = 'block';
             stopCamera();
         });
 
-        // MODAL DE EDIÇÃO (Inalterado)
-        let editingRowData = null; 
+        // MODAL DE EDIÇÃO
+        let editingRowData = null; 
         function openEditModal(rowData, rowElement) {
             currentRow = rowElement;
             editingRowData = rowData;
@@ -461,7 +498,7 @@
             alert('Participante editado com sucesso!');
         });
 
-        // IMPORTAÇÃO (Inalterado)
+        // IMPORTAÇÃO
         importFile.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -470,7 +507,7 @@
             reader.onload = (event) => {
                 const content = event.target.result;
                 processImportedList(content);
-                e.target.value = ''; 
+                e.target.value = ''; 
             };
             reader.onerror = () => {
                 alert('Erro ao ler o arquivo.');
@@ -497,7 +534,7 @@
             alert(`${participantsAdded} participantes importados com sucesso.`);
         }
 
-        // PDF e PERSISTÊNCIA (Inalterados)
+        // PDF e PERSISTÊNCIA
         generatePdf.addEventListener('click', async ()=>{
             if(!tbody.children.length) return alert('Nenhum participante na lista.');
             
@@ -507,20 +544,20 @@
             
             containerToPrint.style.boxShadow = 'none';
             containerToPrint.style.maxWidth = 'none';
-            containerToPrint.style.padding = '0'; 
+            containerToPrint.style.padding = '0'; 
             
             const exportDiv = document.createElement('div');
-            exportDiv.style.padding='10mm'; 
+            exportDiv.style.padding='10mm'; 
             exportDiv.style.fontFamily='Arial, Helvetica, sans-serif';
             
-            const header = document.createElement('div'); 
+            const header = document.createElement('div'); 
             header.innerHTML = `<h2>Lista de Frequência</h2><div style="font-size:12px;">Gerado em: ${new Date().toLocaleString()}</div><hr style="margin:10px 0;"/>`;
             exportDiv.appendChild(header);
 
-            const table = document.createElement('table'); 
+            const table = document.createElement('table'); 
             table.style.width='100%'; table.style.borderCollapse='collapse'; table.style.fontSize='12px';
 
-            const thead = document.createElement('thead'); 
+            const thead = document.createElement('thead'); 
             thead.innerHTML='<tr><th style="border-bottom:1px solid #444;text-align:left;padding:6px">Nome</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px">ID</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px;width:120px;">Assinatura</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px">Localização</th><th style="border-bottom:1px solid #444;text-align:left;padding:6px">Hora</th></tr>';
             table.appendChild(thead);
             const tb = document.createElement('tbody');
@@ -529,8 +566,8 @@
                 const rowData = JSON.parse(tr.dataset.payload);
                 const r = document.createElement('tr');
                 
-                let sigContent = rowData.sigData ? 
-                    `<img src="${rowData.sigData}" style="height:50px;width:100px;object-fit:contain;border:1px solid #ccc;display:block;margin-bottom:4px;"/>` : 
+                let sigContent = rowData.sigData ? 
+                    `<img src="${rowData.sigData}" style="height:50px;width:100px;object-fit:contain;border:1px solid #ccc;display:block;margin-bottom:4px;"/>` : 
                     '<span style="color:#ff0000">Não assinou</span>';
                 
                 if (rowData.photo) {
@@ -555,10 +592,10 @@
 
         function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-        window.addEventListener('resize', ()=>{ 
-            if(modal.style.display === 'flex' && sigCanvas){ 
-                resizeCanvasToDisplaySize(sigCanvas); 
-                if(signaturePad) signaturePad.fromDataURL(signaturePad.toDataURL()); 
+        window.addEventListener('resize', ()=>{ 
+            if(modal.style.display === 'flex' && sigCanvas){ 
+                resizeCanvasToDisplaySize(sigCanvas); 
+                if(signaturePad) signaturePad.fromDataURL(signaturePad.toDataURL()); 
             }
         });
 
@@ -568,14 +605,30 @@
         }
         function loadFromLocal(){
             const raw = localStorage.getItem('attendance_list_v1'); if(!raw) return;
-            try{ 
-                const arr = JSON.parse(raw); 
-                arr.forEach(addRow); 
+            try{ 
+                const arr = JSON.parse(raw); 
+                arr.forEach(addRow); 
             }catch(e){
                 console.error("Erro ao carregar dados locais:", e);
             }
         }
-        const observer = new MutationObserver(()=> saveToLocal());
+        const observer = new MutationObserver((mutationsList, observer) => {
+            mutationsList.forEach(mutation => {
+                if (mutation.type === 'childList' || 
+                    (mutation.type === 'attributes' && mutation.attributeName === 'data-payload')) {
+                    saveToLocal();
+                }
+                // Garante que as classes de botão são atualizadas após o carregamento (loadFromLocal)
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1 && node.tagName === 'TR') {
+                            const data = JSON.parse(node.dataset.payload);
+                            updateRowClasses(node, data.signed);
+                        }
+                    });
+                }
+            });
+        });
         observer.observe(tbody,{childList:true,subtree:true,attributes:true,attributeFilter:['data-payload']});
 
         loadFromLocal();
