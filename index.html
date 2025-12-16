@@ -7,7 +7,7 @@
     <style>
         :root{--accent:#0b74e6; --danger:#ef4444; --warning:#f97316; --bg-light:#f5f7fb;}
         body{font-family:Inter, system-ui, sans-serif; margin:0; padding:20px; background:var(--bg-light)}
-        .container{max-width:1050px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
+        .container{max-width:1100px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
         .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap; align-items: center;}
         input, button{padding:8px 10px;border-radius:8px;border:1px solid #d1d5db; transition: 0.2s;}
         button{background:var(--accent);color:#fff;border:none;cursor:pointer;white-space:nowrap;}
@@ -21,17 +21,23 @@
         .small{font-size:13px;color:#6b7280}
         .signed-thumb{height:45px;border-radius:6px;border:1px solid #ddd; margin-right:5px; object-fit: cover;}
         
+        /* MODAL E LAYOUT LADO A LADO */
         .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:1000}
-        .card{background:#fff;padding:20px;border-radius:10px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;}
-        .signature-canvas{border:1px solid #ddd; width:100%; height:200px; border-radius:8px; background: #fafafa;}
-        #video{width:100%; border-radius:8px; background:#000; transform: scaleX(-1);}
+        .card{background:#fff;padding:25px;border-radius:10px;max-width:900px;width:95%;max-height:95vh;overflow-y:auto;}
         
+        .modal-flex { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px; }
+        .flex-col { flex: 1; min-width: 300px; }
+        
+        .signature-canvas{border:1px solid #ddd; width:100%; height:250px; border-radius:8px; background: #fafafa;}
+        #video{width:100%; height:250px; object-fit: cover; border-radius:8px; background:#000; transform: scaleX(-1);}
+        #photoPreview{width:100%; height:250px; object-fit: cover; border-radius:8px; display:none;}
+
         .status-badge{padding:4px 8px; border-radius:12px; font-size:11px; font-weight:bold;}
         .status-pendente{background:#fee2e2; color:#ef4444;}
         .status-assinado{background:#dcfce7; color:#16a34a;}
 
-        @media (max-width: 600px) {
-            .controls > * { flex-basis: 100%; }
+        @media (max-width: 768px) {
+            .flex-col { min-width: 100%; }
         }
     </style>
 </head>
@@ -59,7 +65,7 @@
             <tr>
                 <th>Status</th>
                 <th>Nome</th>
-                <th>Identificador</th>
+                <th>ID</th>
                 <th>Assinatura/Foto</th>
                 <th>Data/Hora</th>
                 <th>Ações</th>
@@ -70,29 +76,40 @@
 </div>
 
 <div id="qrModal" class="modal">
-    <div class="card" style="text-align:center">
+    <div class="card" style="text-align:center; max-width: 400px;">
         <h2>Acesso do Colaborador</h2>
         <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0"></div>
-        <p class="small">Peça para o colaborador escanear para assinar pelo celular.</p>
         <button onclick="fecharModais()" class="ghost">Fechar</button>
     </div>
 </div>
 
 <div id="signModal" class="modal">
     <div class="card">
-        <h3 id="nomeAssinando">Assinar</h3>
-        <div id="cameraArea">
-            <video id="video" autoplay playsinline></video>
-            <button id="takePhoto" style="width:100%; margin:10px 0">📸 Tirar Selfie</button>
-            <img id="photoPreview" style="display:none; width:100%; border-radius:8px; margin-bottom:10px"/>
+        <h2 id="nomeAssinando" style="margin-top:0">Assinar</h2>
+        
+        <div class="modal-flex">
+            <div class="flex-col">
+                <label class="small"><b>1. Tire uma Selfie:</b></label>
+                <div style="margin-top:8px">
+                    <video id="video" autoplay playsinline></video>
+                    <img id="photoPreview" />
+                    <button id="takePhoto" style="width:100%; margin-top:10px">📸 Capturar Foto</button>
+                </div>
+            </div>
+
+            <div class="flex-col">
+                <label class="small"><b>2. Assine abaixo:</b></label>
+                <div style="margin-top:8px">
+                    <canvas id="sigCanvas" class="signature-canvas"></canvas>
+                    <button id="clearSig" class="ghost" style="width:100%; margin-top:10px">Limpar Assinatura</button>
+                </div>
+            </div>
         </div>
-        <div class="small">Desenhe sua assinatura abaixo:</div>
-        <canvas id="sigCanvas" class="signature-canvas"></canvas>
-        <div style="display:flex; gap:10px; margin-top:10px">
-            <button id="clearSig" class="ghost" style="flex:1">Limpar</button>
-            <button id="saveData" style="flex:2">Confirmar Presença</button>
+
+        <div style="margin-top:25px; display:flex; gap:10px; border-top:1px solid #eee; padding-top:20px">
+            <button onclick="fecharModais()" class="ghost" style="flex:1">Cancelar</button>
+            <button id="saveData" style="flex:2; font-weight:bold; font-size:16px">CONFIRMAR PRESENÇA</button>
         </div>
-        <button onclick="fecharModais()" class="ghost" style="width:100%; margin-top:10px">Cancelar</button>
     </div>
 </div>
 
@@ -119,104 +136,44 @@
     const db = firebase.database();
     let sigPad, localStream, currentUserId = null;
 
-    // --- LOGICA DE PESQUISA ---
     function filtrarTabela() {
         const input = document.getElementById("searchInput");
         const filter = input.value.toUpperCase();
-        const table = document.getElementById("mainTable");
-        const tr = table.getElementsByTagName("tr");
-
-        for (let i = 1; i < tr.length; i++) {
-            const tdNome = tr[i].getElementsByTagName("td")[1];
-            if (tdNome) {
-                const txtValue = tdNome.textContent || tdNome.innerText;
-                tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
-            }
+        const tr = document.getElementById("tableBody").getElementsByTagName("tr");
+        for (let i = 0; i < tr.length; i++) {
+            const td = tr[i].getElementsByTagName("td")[1];
+            if (td) tr[i].style.display = td.innerText.toUpperCase().indexOf(filter) > -1 ? "" : "none";
         }
     }
 
-    // --- FUNÇÕES DO BANCO DE DADOS ---
-    
     db.ref('participantes').on('value', (snapshot) => {
         const tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = '';
         const data = snapshot.val();
-        
         if (data) {
             Object.keys(data).forEach(key => {
                 const p = data[key];
                 const tr = document.createElement('tr');
-                const statusClass = p.signed ? 'status-assinado' : 'status-pendente';
-                const statusText = p.signed ? 'Assinado' : 'Pendente';
-                
                 tr.innerHTML = `
-                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                    <td class="nome-col">${p.name}</td>
+                    <td><span class="status-badge ${p.signed ? 'status-assinado' : 'status-pendente'}">${p.signed ? 'Assinado' : 'Pendente'}</span></td>
+                    <td>${p.name}</td>
                     <td>${p.id || '-'}</td>
-                    <td>
-                        ${p.signed ? `<img src="${p.sigData}" class="signed-thumb"><img src="${p.photo}" class="signed-thumb">` : '-'}
-                    </td>
+                    <td>${p.signed ? `<img src="${p.sigData}" class="signed-thumb"><img src="${p.photo}" class="signed-thumb">` : '-'}</td>
                     <td class="small">${p.time || '-'}</td>
-                    <td style="display:flex; gap:5px">
-                        ${!p.signed ? `<button onclick="abrirAssinatura('${key}', '${p.name}')">Assinar</button>` : `<button class="ghost" onclick="abrirAssinatura('${key}', '${p.name}')">Refazer</button>`}
-                        <button class="danger" onclick="excluirParticipante('${key}', '${p.name}')">Excluir</button>
+                    <td>
+                        <button onclick="abrirAssinatura('${key}', '${p.name}')">${p.signed ? 'Refazer' : 'Assinar'}</button>
+                        <button class="danger" onclick="excluirParticipante('${key}', '${p.name}')">X</button>
                     </td>
                 `;
                 tableBody.appendChild(tr);
             });
-            filtrarTabela(); // Re-aplica o filtro se houver algo digitado
+            filtrarTabela();
         }
     });
 
-    function excluirParticipante(id, nome) {
-        const pass = prompt(`Digite a senha para excluir ${nome}:`);
-        if(pass === ADMIN_PASSWORD) {
-            if(confirm("Deseja realmente remover este participante?")) {
-                db.ref('participantes/' + id).remove();
-            }
-        } else if (pass !== null) { alert("Senha incorreta!"); }
-    }
-
-    document.getElementById('clearAllBtn').onclick = () => {
-        const pass = prompt("ATENÇÃO: Digite a senha para LIMPAR TODA A LISTA:");
-        if(pass === ADMIN_PASSWORD) {
-            if(confirm("Isso apagará todos os nomes e assinaturas. Tem certeza?")) {
-                db.ref('participantes').remove();
-            }
-        } else if (pass !== null) { alert("Senha incorreta!"); }
-    };
-
-    // Adicionar manual
-    document.getElementById('addBtn').onclick = () => {
-        const nome = document.getElementById('nameInput').value.trim();
-        if(!nome) return;
-        db.ref('participantes').push().set({ name: nome, id: '', signed: false });
-        document.getElementById('nameInput').value = '';
-    };
-
-    // Importar lista
-    document.getElementById('importFile').addEventListener('change', function(e) {
-        const reader = new FileReader();
-        reader.onload = function() {
-            const lines = reader.result.split('\n');
-            lines.forEach(line => {
-                const parts = line.split(/[;,]/);
-                const nome = parts[0]?.trim();
-                const ident = parts[1]?.trim() || '';
-                if(nome && nome !== "Nome") {
-                    db.ref('participantes').push().set({ name: nome, id: ident, signed: false });
-                }
-            });
-            alert("Lista importada com sucesso!");
-        };
-        reader.readAsText(e.target.files[0]);
-    });
-
-    // --- INTERFACE DE ASSINATURA ---
-
     function abrirAssinatura(id, nome) {
         currentUserId = id;
-        document.getElementById('nomeAssinando').innerText = "Assinando: " + nome;
+        document.getElementById('nomeAssinando').innerText = nome;
         document.getElementById('signModal').style.display = 'flex';
         document.getElementById('photoPreview').style.display = 'none';
         document.getElementById('video').style.display = 'block';
@@ -227,19 +184,16 @@
         navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}}).then(s => {
             localStream = s;
             document.getElementById('video').srcObject = s;
-        }).catch(err => alert("Câmera não disponível ou bloqueada."));
+        });
     }
 
     document.getElementById('takePhoto').onclick = () => {
         const video = document.getElementById('video');
-        if(!video.srcObject) return alert("Ligue a câmera primeiro.");
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
+        ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0);
-        
         document.getElementById('photoPreview').src = canvas.toDataURL('image/jpeg');
         document.getElementById('photoPreview').style.display = 'block';
         document.getElementById('video').style.display = 'none';
@@ -248,23 +202,28 @@
 
     document.getElementById('saveData').onclick = () => {
         const photo = document.getElementById('photoPreview').src;
-        if(sigPad.isEmpty()) return alert("Assinatura é obrigatória!");
-        if(!photo.startsWith('data')) return alert("A selfie é obrigatória!");
-
+        if(sigPad.isEmpty() || !photo.startsWith('data')) return alert("Assinatura e Foto obrigatórias!");
         db.ref('participantes/' + currentUserId).update({
-            signed: true,
-            sigData: sigPad.toDataURL(),
-            photo: photo,
-            time: new Date().toLocaleString()
-        }).then(() => {
-            fecharModais();
-        });
+            signed: true, sigData: sigPad.toDataURL(), photo: photo, time: new Date().toLocaleString()
+        }).then(fecharModais);
+    };
+
+    function excluirParticipante(id, nome) {
+        if(prompt(`Senha para excluir ${nome}:`) === ADMIN_PASSWORD) db.ref('participantes/' + id).remove();
+    }
+
+    document.getElementById('clearAllBtn').onclick = () => {
+        if(prompt("Senha para LIMPAR TUDO:") === ADMIN_PASSWORD) db.ref('participantes').remove();
+    };
+
+    document.getElementById('addBtn').onclick = () => {
+        const nome = document.getElementById('nameInput').value.trim();
+        if(nome) { db.ref('participantes').push().set({ name: nome, signed: false }); document.getElementById('nameInput').value = ''; }
     };
 
     document.getElementById('showQrBtn').onclick = () => {
-        const qrContainer = document.getElementById('qrcode');
-        qrContainer.innerHTML = "";
-        new QRCode(qrContainer, { text: window.location.href, width: 200, height: 200 });
+        document.getElementById('qrcode').innerHTML = "";
+        new QRCode(document.getElementById('qrcode'), { text: window.location.href, width: 180, height: 180 });
         document.getElementById('qrModal').style.display = 'flex';
     };
 
@@ -274,19 +233,7 @@
     }
 
     document.getElementById('clearSig').onclick = () => sigPad.clear();
-
-    document.getElementById('generatePdf').onclick = () => {
-        const el = document.getElementById('mainTable');
-        const opt = { 
-            margin: 5, 
-            filename: 'frequencia_cri_2026.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-        };
-        html2pdf().set(opt).from(el).save();
-    };
+    document.getElementById('generatePdf').onclick = () => html2pdf().from(document.getElementById('mainTable')).save('lista.pdf');
 </script>
-
 </body>
 </html>
