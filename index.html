@@ -7,35 +7,51 @@
     <style>
         :root{--accent:#0b74e6; --danger:#ef4444; --warning:#f97316; --bg-light:#f5f7fb;}
         body{font-family:Inter, system-ui, sans-serif; margin:0; padding:20px; background:var(--bg-light)}
-        .container{max-width:980px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
-        .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+        .container{max-width:1050px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
+        .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap; align-items: center;}
         input, button{padding:8px 10px;border-radius:8px;border:1px solid #d1d5db; transition: 0.2s;}
         button{background:var(--accent);color:#fff;border:none;cursor:pointer;white-space:nowrap;}
         button.ghost{background:#fff;color:var(--accent);border:1px solid var(--accent);}
+        button.danger{background:var(--danger); color:#fff;}
+        
+        #searchInput { background: #fff; border: 2px solid var(--accent); flex-grow: 2; min-width: 200px;}
+        
         table{width:100%;border-collapse:collapse;margin-top:12px}
-        th, td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left;}
+        th, td{padding:10px;border-bottom:1px solid #eef2f7;text-align:left;}
         .small{font-size:13px;color:#6b7280}
-        .signed-thumb{height:45px;border-radius:6px;border:1px solid #ddd; margin-right:5px}
+        .signed-thumb{height:45px;border-radius:6px;border:1px solid #ddd; margin-right:5px; object-fit: cover;}
+        
         .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:1000}
         .card{background:#fff;padding:20px;border-radius:10px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;}
-        .signature-canvas{border:1px solid #ddd; width:100%; height:200px; border-radius:8px;}
+        .signature-canvas{border:1px solid #ddd; width:100%; height:200px; border-radius:8px; background: #fafafa;}
         #video{width:100%; border-radius:8px; background:#000; transform: scaleX(-1);}
+        
         .status-badge{padding:4px 8px; border-radius:12px; font-size:11px; font-weight:bold;}
         .status-pendente{background:#fee2e2; color:#ef4444;}
         .status-assinado{background:#dcfce7; color:#16a34a;}
+
+        @media (max-width: 600px) {
+            .controls > * { flex-basis: 100%; }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>Lista Digital — CRI 2026</h1>
+    
     <div class="controls">
         <input id="nameInput" placeholder="Nome do participante" style="flex-grow:1"/>
         <button id="addBtn">Adicionar</button>
         <button id="importBtn" onclick="document.getElementById('importFile').click()" class="ghost">Importar Lista</button>
         <input type="file" id="importFile" style="display:none" accept=".txt,.csv" />
         <button id="showQrBtn" class="ghost">📲 QR Code</button>
+        <button id="clearAllBtn" class="danger">Limpar Tudo</button>
         <button id="generatePdf" style="margin-left:auto">Gerar PDF</button>
+    </div>
+
+    <div class="controls">
+        <input id="searchInput" type="text" placeholder="🔍 Pesquisar nome na lista..." onkeyup="filtrarTabela()">
     </div>
 
     <table id="mainTable">
@@ -57,7 +73,7 @@
     <div class="card" style="text-align:center">
         <h2>Acesso do Colaborador</h2>
         <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0"></div>
-        <p class="small">Aponte a câmera do celular para abrir a lista e assinar.</p>
+        <p class="small">Peça para o colaborador escanear para assinar pelo celular.</p>
         <button onclick="fecharModais()" class="ghost">Fechar</button>
     </div>
 </div>
@@ -70,6 +86,7 @@
             <button id="takePhoto" style="width:100%; margin:10px 0">📸 Tirar Selfie</button>
             <img id="photoPreview" style="display:none; width:100%; border-radius:8px; margin-bottom:10px"/>
         </div>
+        <div class="small">Desenhe sua assinatura abaixo:</div>
         <canvas id="sigCanvas" class="signature-canvas"></canvas>
         <div style="display:flex; gap:10px; margin-top:10px">
             <button id="clearSig" class="ghost" style="flex:1">Limpar</button>
@@ -86,7 +103,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
-    // CONFIGURAÇÃO QUE VOCÊ ENVIOU
+    const ADMIN_PASSWORD = '1992';
+
     const firebaseConfig = {
         apiKey: "AIzaSyBy4gbEfmMgm-zgMmGq6h3oQ_-gQy2l2R0",
         authDomain: "frenquencia-digital.firebaseapp.com",
@@ -101,9 +119,24 @@
     const db = firebase.database();
     let sigPad, localStream, currentUserId = null;
 
-    // --- FUNÇÕES DE BANCO DE DADOS ---
+    // --- LOGICA DE PESQUISA ---
+    function filtrarTabela() {
+        const input = document.getElementById("searchInput");
+        const filter = input.value.toUpperCase();
+        const table = document.getElementById("mainTable");
+        const tr = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < tr.length; i++) {
+            const tdNome = tr[i].getElementsByTagName("td")[1];
+            if (tdNome) {
+                const txtValue = tdNome.textContent || tdNome.innerText;
+                tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+            }
+        }
+    }
+
+    // --- FUNÇÕES DO BANCO DE DADOS ---
     
-    // Escuta mudanças no banco e atualiza a tabela no PC e Celular simultaneamente
     db.ref('participantes').on('value', (snapshot) => {
         const tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = '';
@@ -118,20 +151,48 @@
                 
                 tr.innerHTML = `
                     <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                    <td>${p.name}</td>
+                    <td class="nome-col">${p.name}</td>
                     <td>${p.id || '-'}</td>
                     <td>
                         ${p.signed ? `<img src="${p.sigData}" class="signed-thumb"><img src="${p.photo}" class="signed-thumb">` : '-'}
                     </td>
                     <td class="small">${p.time || '-'}</td>
-                    <td>
+                    <td style="display:flex; gap:5px">
                         ${!p.signed ? `<button onclick="abrirAssinatura('${key}', '${p.name}')">Assinar</button>` : `<button class="ghost" onclick="abrirAssinatura('${key}', '${p.name}')">Refazer</button>`}
+                        <button class="danger" onclick="excluirParticipante('${key}', '${p.name}')">Excluir</button>
                     </td>
                 `;
                 tableBody.appendChild(tr);
             });
+            filtrarTabela(); // Re-aplica o filtro se houver algo digitado
         }
     });
+
+    function excluirParticipante(id, nome) {
+        const pass = prompt(`Digite a senha para excluir ${nome}:`);
+        if(pass === ADMIN_PASSWORD) {
+            if(confirm("Deseja realmente remover este participante?")) {
+                db.ref('participantes/' + id).remove();
+            }
+        } else if (pass !== null) { alert("Senha incorreta!"); }
+    }
+
+    document.getElementById('clearAllBtn').onclick = () => {
+        const pass = prompt("ATENÇÃO: Digite a senha para LIMPAR TODA A LISTA:");
+        if(pass === ADMIN_PASSWORD) {
+            if(confirm("Isso apagará todos os nomes e assinaturas. Tem certeza?")) {
+                db.ref('participantes').remove();
+            }
+        } else if (pass !== null) { alert("Senha incorreta!"); }
+    };
+
+    // Adicionar manual
+    document.getElementById('addBtn').onclick = () => {
+        const nome = document.getElementById('nameInput').value.trim();
+        if(!nome) return;
+        db.ref('participantes').push().set({ name: nome, id: '', signed: false });
+        document.getElementById('nameInput').value = '';
+    };
 
     // Importar lista
     document.getElementById('importFile').addEventListener('change', function(e) {
@@ -142,54 +203,44 @@
                 const parts = line.split(/[;,]/);
                 const nome = parts[0]?.trim();
                 const ident = parts[1]?.trim() || '';
-                if(nome) {
-                    const newRef = db.ref('participantes').push();
-                    newRef.set({ name: nome, id: ident, signed: false });
+                if(nome && nome !== "Nome") {
+                    db.ref('participantes').push().set({ name: nome, id: ident, signed: false });
                 }
             });
+            alert("Lista importada com sucesso!");
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    // Adicionar manual
-    document.getElementById('addBtn').onclick = () => {
-        const nome = document.getElementById('nameInput').value;
-        if(!nome) return;
-        db.ref('participantes').push().set({ name: nome, id: '', signed: false });
-        document.getElementById('nameInput').value = '';
-    };
-
-    // --- FUNÇÕES DE INTERFACE ---
+    // --- INTERFACE DE ASSINATURA ---
 
     function abrirAssinatura(id, nome) {
         currentUserId = id;
-        document.getElementById('nomeAssinando').innerText = "Assinar: " + nome;
+        document.getElementById('nomeAssinando').innerText = "Assinando: " + nome;
         document.getElementById('signModal').style.display = 'flex';
-        
-        // Reset modal
         document.getElementById('photoPreview').style.display = 'none';
         document.getElementById('video').style.display = 'block';
         
         const canvas = document.getElementById('sigCanvas');
         sigPad = new SignaturePad(canvas);
         
-        // Iniciar Câmera automaticamente
         navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}}).then(s => {
             localStream = s;
             document.getElementById('video').srcObject = s;
-        });
+        }).catch(err => alert("Câmera não disponível ou bloqueada."));
     }
 
     document.getElementById('takePhoto').onclick = () => {
         const video = document.getElementById('video');
+        if(!video.srcObject) return alert("Ligue a câmera primeiro.");
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').translate(canvas.width, 0);
-        canvas.getContext('2d').scale(-1, 1);
-        canvas.getContext('2d').drawImage(video, 0, 0);
+        const ctx = canvas.getContext('2d');
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0);
         
-        const data = canvas.toDataURL('image/jpeg');
-        document.getElementById('photoPreview').src = data;
+        document.getElementById('photoPreview').src = canvas.toDataURL('image/jpeg');
         document.getElementById('photoPreview').style.display = 'block';
         document.getElementById('video').style.display = 'none';
         if(localStream) localStream.getTracks().forEach(t => t.stop());
@@ -197,7 +248,8 @@
 
     document.getElementById('saveData').onclick = () => {
         const photo = document.getElementById('photoPreview').src;
-        if(sigPad.isEmpty() || !photo.startsWith('data')) return alert("Assinatura e Foto são obrigatórias!");
+        if(sigPad.isEmpty()) return alert("Assinatura é obrigatória!");
+        if(!photo.startsWith('data')) return alert("A selfie é obrigatória!");
 
         db.ref('participantes/' + currentUserId).update({
             signed: true,
@@ -206,16 +258,13 @@
             time: new Date().toLocaleString()
         }).then(() => {
             fecharModais();
-            alert("Sucesso!");
         });
     };
 
     document.getElementById('showQrBtn').onclick = () => {
-        document.getElementById('qrcode').innerHTML = "";
-        new QRCode(document.getElementById('qrcode'), {
-            text: "https://davipaiva07.github.io/lista-frequencia-digital/",
-            width: 200, height: 200
-        });
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, { text: window.location.href, width: 200, height: 200 });
         document.getElementById('qrModal').style.display = 'flex';
     };
 
@@ -228,7 +277,14 @@
 
     document.getElementById('generatePdf').onclick = () => {
         const el = document.getElementById('mainTable');
-        html2pdf().from(el).save('frequencia.pdf');
+        const opt = { 
+            margin: 5, 
+            filename: 'frequencia_cri_2026.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        };
+        html2pdf().set(opt).from(el).save();
     };
 </script>
 
