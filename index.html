@@ -254,7 +254,7 @@
 
     document.getElementById('showQrBtn').onclick = () => {
         document.getElementById('qrcode').innerHTML = "";
-        new QRCode(document.getElementById('qrcode'), { text: window.location.href, width: 180, height: 180 });
+        new QRCode(document.getElementById('qrcode'), { text: "https://ticasadecrianca.github.io/lista-frequencia-digital/", width: 180, height: 180 });
         document.getElementById('qrModal').style.display = 'flex';
     };
 
