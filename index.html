@@ -7,18 +7,24 @@
     <style>
         :root{--accent:#0b74e6; --danger:#ef4444; --warning:#f97316; --bg-light:#f5f7fb;}
         body{font-family:Inter, system-ui, sans-serif; margin:0; padding:20px; background:var(--bg-light)}
-        .container{max-width:1100px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
+        .container{max-width:1150px;margin:0 auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,.08)}
         .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap; align-items: center;}
         input, button{padding:8px 10px;border-radius:8px;border:1px solid #d1d5db; transition: 0.2s;}
         button{background:var(--accent);color:#fff;border:none;cursor:pointer;white-space:nowrap;}
         button.ghost{background:#fff;color:var(--accent);border:1px solid var(--accent);}
         button.danger{background:var(--danger); color:#fff;}
         
-        #searchInput { background: #fff; border: 2px solid var(--accent); flex-grow: 2; min-width: 200px;}
+        #searchInput { background: #fff; border: 2px solid var(--accent); flex-grow: 1; font-size: 16px; padding: 12px;}
         
         table{width:100%;border-collapse:collapse;margin-top:12px}
         th, td{padding:10px;border-bottom:1px solid #eef2f7;text-align:left;}
-        .small{font-size:13px;color:#6b7280}
+        
+        /* Ocultar linhas por padrão para busca */
+        #tableBody tr { display: none; }
+        .mostrar-linha { display: table-row !important; }
+
+        .small{font-size:11px;color:#6b7280; display: block; margin-top: 4px;}
+        .address-text{color: #16a34a; font-weight: 500; font-style: italic;}
         .signed-thumb{height:45px;border-radius:6px;border:1px solid #ddd; margin-right:5px; object-fit: cover;}
         
         .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:1000}
@@ -27,7 +33,6 @@
         .modal-flex { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px; }
         .flex-col { flex: 1; min-width: 300px; }
         
-        /* Ajuste fino do Canvas */
         .signature-wrapper { border: 1px solid #ddd; border-radius: 8px; background: #fafafa; position: relative; width: 100%; height: 250px; }
         .signature-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
         
@@ -38,26 +43,30 @@
         .status-pendente{background:#fee2e2; color:#ef4444;}
         .status-assinado{background:#dcfce7; color:#16a34a;}
 
+        /* Esconde painel admin no modo colaborador */
+        body.modo-colaborador #adminPanel { display: none; }
+        body.modo-colaborador h1 { font-size: 20px; text-align: center; }
+
         @media (max-width: 768px) { .flex-col { min-width: 100%; } }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Lista Digital — CRI 2026</h1>
+    <h1 id="tituloPagina">Gestão de Frequência — CRI 2026</h1>
     
-    <div class="controls">
-        <input id="nameInput" placeholder="Nome do participante" style="flex-grow:1"/>
-        <button id="addBtn">Adicionar</button>
-        <button id="importBtn" onclick="document.getElementById('importFile').click()" class="ghost">Importar Lista</button>
+    <div class="controls" id="adminPanel">
+        <input id="nameInput" placeholder="Novo nome..." style="width: 200px"/>
+        <button id="addBtn">Add</button>
+        <button id="importBtn" onclick="document.getElementById('importFile').click()" class="ghost">Importar</button>
         <input type="file" id="importFile" style="display:none" accept=".txt,.csv" />
-        <button id="showQrBtn" class="ghost">📲 QR Code</button>
-        <button id="clearAllBtn" class="danger">Limpar Tudo</button>
+        <button id="showQrBtn" class="ghost">📲 Gerar QR Code Colaborador</button>
+        <button id="clearAllBtn" class="danger">Limpar Banco</button>
         <button id="generatePdf" style="margin-left:auto">Gerar PDF</button>
     </div>
 
     <div class="controls">
-        <input id="searchInput" type="text" placeholder="🔍 Pesquisar nome na lista..." onkeyup="filtrarTabela()">
+        <input id="searchInput" type="text" placeholder="🔍 DIGITE SEU NOME PARA ASSINAR..." onkeyup="filtrarTabela()">
     </div>
 
     <table id="mainTable">
@@ -65,10 +74,10 @@
             <tr>
                 <th>Status</th>
                 <th>Nome</th>
-                <th>ID</th>
+                <th class="col-admin">ID</th>
                 <th>Assinatura/Foto</th>
-                <th>Data/Hora</th>
-                <th>Ações</th>
+                <th class="col-admin">Data / Local</th>
+                <th>Ação</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -77,10 +86,11 @@
 
 <div id="signModal" class="modal">
     <div class="card">
-        <h2 id="nomeAssinando" style="margin-top:0">Assinar</h2>
+        <h2 id="nomeAssinando">Assinar</h2>
+        <div id="geoStatus" class="small" style="color: var(--warning); font-weight: bold;">Localizando...</div>
         <div class="modal-flex">
             <div class="flex-col">
-                <label class="small"><b>1. Tire uma Selfie:</b></label>
+                <label class="small"><b>1. Selfie:</b></label>
                 <div style="margin-top:8px">
                     <video id="video" autoplay playsinline></video>
                     <img id="photoPreview" style="display:none;" />
@@ -88,12 +98,12 @@
                 </div>
             </div>
             <div class="flex-col">
-                <label class="small"><b>2. Assine abaixo:</b></label>
+                <label class="small"><b>2. Assinatura:</b></label>
                 <div style="margin-top:8px">
                     <div class="signature-wrapper">
                         <canvas id="sigCanvas" class="signature-canvas"></canvas>
                     </div>
-                    <button id="clearSig" class="ghost" style="width:100%; margin-top:10px">Limpar Assinatura</button>
+                    <button id="clearSig" class="ghost" style="width:100%; margin-top:10px">Limpar</button>
                 </div>
             </div>
         </div>
@@ -108,6 +118,7 @@
     <div class="card" style="text-align:center; max-width: 400px;">
         <h2>Acesso do Colaborador</h2>
         <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0"></div>
+        <p class="small">Este QR Code abre a versão simplificada de busca para o colaborador.</p>
         <button onclick="fecharModais()" class="ghost">Fechar</button>
     </div>
 </div>
@@ -132,67 +143,41 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    let sigPad, localStream, currentUserId = null;
+    let sigPad, localStream, currentUserId = null, currentGeoLabel = "Não capturado";
 
-    // --- CORREÇÃO IMPORTAÇÃO ---
-    document.getElementById('importFile').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const lines = event.target.result.split(/\r?\n/);
-            lines.forEach(line => {
-                const parts = line.split(/[;,]/);
-                const nome = parts[0]?.trim();
-                const ident = parts[1]?.trim() || '';
-                if (nome && nome.toLowerCase() !== "nome") {
-                    db.ref('participantes').push().set({ name: nome, id: ident, signed: false });
-                }
-            });
-            alert("Importação concluída!");
-            e.target.value = "";
-        };
-        reader.readAsText(file);
-    });
+    // --- IDENTIFICAR MODO (ADMIN OU COLABORADOR) ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const eModoColaborador = urlParams.has('modo');
 
-    // --- CORREÇÃO ASSINATURA (CALIBRAÇÃO) ---
-    function abrirAssinatura(id, nome) {
-        currentUserId = id;
-        document.getElementById('nomeAssinando').innerText = nome;
-        document.getElementById('signModal').style.display = 'flex';
-        
-        // Pequena pausa para o modal renderizar antes de calibrar o canvas
-        setTimeout(() => {
-            const canvas = document.getElementById('sigCanvas');
-            // Ajusta o tamanho interno do canvas para o tamanho visual dele
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            if (sigPad) sigPad.off(); // Limpa instância anterior
-            sigPad = new SignaturePad(canvas, {
-                backgroundColor: 'rgba(255, 255, 255, 0)',
-                penColor: 'rgb(0, 0, 0)'
-            });
-        }, 200);
-
-        navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}}).then(s => {
-            localStream = s;
-            document.getElementById('video').srcObject = s;
-            document.getElementById('photoPreview').style.display = 'none';
-            document.getElementById('video').style.display = 'block';
-        });
+    if (eModoColaborador) {
+        document.body.classList.add('modo-colaborador');
+        document.getElementById('tituloPagina').innerText = "Lista de Presença Digital";
+        // Esconde colunas extras para o colaborador
+        document.querySelectorAll('.col-admin').forEach(el => el.style.display = 'none');
     }
 
-    // --- RESTANTE DAS FUNÇÕES ---
+    // --- FILTRO DE BUSCA ---
     function filtrarTabela() {
         const filter = document.getElementById("searchInput").value.toUpperCase();
         const tr = document.getElementById("tableBody").getElementsByTagName("tr");
+
         for (let i = 0; i < tr.length; i++) {
-            const td = tr[i].getElementsByTagName("td")[1];
-            if (td) tr[i].style.display = td.innerText.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+            const tdNome = tr[i].getElementsByTagName("td")[1];
+            if (tdNome) {
+                const txtValue = tdNome.innerText.toUpperCase();
+                // Admin vê tudo se busca estiver vazia. Colaborador só vê se digitar 2+ letras.
+                if (filter.length >= 2 && txtValue.indexOf(filter) > -1) {
+                    tr[i].classList.add('mostrar-linha');
+                } else if (!eModoColaborador && filter === "") {
+                    tr[i].classList.add('mostrar-linha');
+                } else {
+                    tr[i].classList.remove('mostrar-linha');
+                }
+            }
         }
     }
 
+    // --- BANCO DE DADOS ---
     db.ref('participantes').on('value', (snapshot) => {
         const tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = '';
@@ -203,21 +188,94 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td><span class="status-badge ${p.signed ? 'status-assinado' : 'status-pendente'}">${p.signed ? 'Assinado' : 'Pendente'}</span></td>
-                    <td>${p.name}</td>
-                    <td>${p.id || '-'}</td>
+                    <td><b>${p.name}</b></td>
+                    <td class="col-admin">${p.id || '-'}</td>
                     <td>${p.signed ? `<img src="${p.sigData}" class="signed-thumb"><img src="${p.photo}" class="signed-thumb">` : '-'}</td>
-                    <td class="small">${p.time || '-'}</td>
+                    <td class="col-admin small">${p.time || '-'} <br><span class="address-text">${p.geo || ''}</span></td>
                     <td>
-                        <button onclick="abrirAssinatura('${key}', '${p.name}')">${p.signed ? 'Refazer' : 'Assinar'}</button>
-                        <button class="danger" onclick="excluirParticipante('${key}', '${p.name}')">X</button>
+                        ${p.signed ? 
+                            `<button class="ghost" onclick="tentarRefazer('${key}', '${p.name}')">Refazer</button>` : 
+                            `<button onclick="abrirAssinatura('${key}', '${p.name}')">Assinar</button>`
+                        }
+                        ${!eModoColaborador ? `<button class="danger" onclick="excluirParticipante('${key}', '${p.name}')">X</button>` : ''}
                     </td>
                 `;
                 tableBody.appendChild(tr);
             });
+            // Reaplica as restrições de coluna e busca
+            if (eModoColaborador) document.querySelectorAll('.col-admin').forEach(el => el.style.display = 'none');
             filtrarTabela();
         }
     });
 
+    function tentarRefazer(id, nome) {
+        if(prompt("Digite a senha para REFAZER assinatura:") === ADMIN_PASSWORD) {
+            abrirAssinatura(id, nome);
+        } else {
+            alert("Senha incorreta!");
+        }
+    }
+
+    // --- QR CODE INTELIGENTE ---
+    document.getElementById('showQrBtn').onclick = () => {
+        document.getElementById('qrcode').innerHTML = "";
+        // Adiciona ?modo=1 ao link atual
+        const linkColaborador = window.location.origin + window.location.pathname + "?modo=1";
+        new QRCode(document.getElementById('qrcode'), { text: linkColaborador, width: 180, height: 180 });
+        document.getElementById('qrModal').style.display = 'flex';
+    };
+
+    // --- FUNÇÕES DE ASSINATURA E SELFIE (IGUAIS ANTERIORES) ---
+    async function capturarEndereco() {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude, lon = pos.coords.longitude;
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+                    const data = await response.json();
+                    const r = data.address;
+                    currentGeoLabel = `${r.road || 'Rua'}${r.house_number ? ', ' + r.house_number : ''} - ${r.suburb || r.city_district || ''}`;
+                    document.getElementById('geoStatus').innerText = "📍 Local: " + currentGeoLabel;
+                    document.getElementById('geoStatus').style.color = "green";
+                } catch (e) { currentGeoLabel = `${lat.toFixed(4)}, ${lon.toFixed(4)}`; }
+            });
+        }
+    }
+
+    function abrirAssinatura(id, nome) {
+        currentUserId = id;
+        document.getElementById('nomeAssinando').innerText = nome;
+        document.getElementById('signModal').style.display = 'flex';
+        capturarEndereco();
+        setTimeout(() => {
+            const canvas = document.getElementById('sigCanvas');
+            canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+            if (sigPad) sigPad.off();
+            sigPad = new SignaturePad(canvas);
+        }, 350);
+        navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}}).then(s => {
+            localStream = s;
+            document.getElementById('video').srcObject = s;
+            document.getElementById('photoPreview').style.display = 'none';
+            document.getElementById('video').style.display = 'block';
+        });
+    }
+
+    document.getElementById('saveData').onclick = () => {
+        const photo = document.getElementById('photoPreview').src;
+        if(sigPad.isEmpty() || !photo.startsWith('data')) return alert("Assinatura e Foto obrigatórias!");
+        db.ref('participantes/' + currentUserId).update({
+            signed: true, sigData: sigPad.toDataURL(), photo: photo, 
+            time: new Date().toLocaleString(), geo: currentGeoLabel
+        }).then(fecharModais);
+    };
+
+    function fecharModais() {
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        if(localStream) localStream.getTracks().forEach(t => t.stop());
+    }
+    
+    document.getElementById('clearSig').onclick = () => sigPad.clear();
     document.getElementById('takePhoto').onclick = () => {
         const video = document.getElementById('video');
         const canvas = document.createElement('canvas');
@@ -231,39 +289,17 @@
         if(localStream) localStream.getTracks().forEach(t => t.stop());
     };
 
-    document.getElementById('saveData').onclick = () => {
-        const photo = document.getElementById('photoPreview').src;
-        if(sigPad.isEmpty() || !photo.startsWith('data')) return alert("Assinatura e Foto obrigatórias!");
-        db.ref('participantes/' + currentUserId).update({
-            signed: true, sigData: sigPad.toDataURL(), photo: photo, time: new Date().toLocaleString()
-        }).then(fecharModais);
-    };
-
+    // --- ADMIN FUNÇÕES ---
     function excluirParticipante(id, nome) {
         if(prompt(`Senha para excluir ${nome}:`) === ADMIN_PASSWORD) db.ref('participantes/' + id).remove();
     }
-
     document.getElementById('clearAllBtn').onclick = () => {
         if(prompt("Senha para LIMPAR TUDO:") === ADMIN_PASSWORD) db.ref('participantes').remove();
     };
-
     document.getElementById('addBtn').onclick = () => {
-        const nome = document.getElementById('nameInput').value.trim();
-        if(nome) { db.ref('participantes').push().set({ name: nome, signed: false }); document.getElementById('nameInput').value = ''; }
+        const n = document.getElementById('nameInput').value.trim();
+        if(n) { db.ref('participantes').push().set({ name: n, signed: false }); document.getElementById('nameInput').value = ''; }
     };
-
-    document.getElementById('showQrBtn').onclick = () => {
-        document.getElementById('qrcode').innerHTML = "";
-        new QRCode(document.getElementById('qrcode'), { text: "https://ticasadecrianca.github.io/lista-frequencia-digital/", width: 180, height: 180 });
-        document.getElementById('qrModal').style.display = 'flex';
-    };
-
-    function fecharModais() {
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
-        if(localStream) localStream.getTracks().forEach(t => t.stop());
-    }
-
-    document.getElementById('clearSig').onclick = () => sigPad.clear();
     document.getElementById('generatePdf').onclick = () => {
         const el = document.getElementById('mainTable');
         html2pdf().set({ margin: 5, filename: 'frequencia.pdf', jsPDF: { orientation: 'landscape' } }).from(el).save();
